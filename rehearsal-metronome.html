@@ -316,11 +316,12 @@ function markFor(n){ const m = P.marks.find(x=>x[0]===n); return m ? m[1] : ""; 
 function t(k){ return I18N[lang][k]; }
 
 /* ---------- audio ---------- */
-function click(time, accent){
+function click(time, accent, downbeat){
   const o = ctx.createOscillator(), g = ctx.createGain();
   o.type = accent ? "triangle" : "sine";
-  o.frequency.value = accent ? 1760 : 1180;
-  const peak = accent ? 0.9 : 0.22;
+  // downbeat: first eighth of the bar, a fifth above the group accent
+  o.frequency.value = downbeat ? 2637 : accent ? 1760 : 1180;
+  const peak = downbeat ? 1 : accent ? 0.9 : 0.22;
   g.gain.setValueAtTime(0.0001, time);
   g.gain.exponentialRampToValueAtTime(peak, time + 0.002);
   g.gain.exponentialRampToValueAtTime(0.0001, time + (accent ? 0.06 : 0.035));
@@ -333,7 +334,7 @@ function schedule(){
   while(schedBar !== null && nextTime < ctx.currentTime + 0.12){
     const bar = P.bars[schedBar], slot = bar.slots[schedSlot];
     const tp = tempoForBar(schedBar);
-    click(nextTime, slot.accent);
+    click(nextTime, slot.accent, schedSlot === 0);
     queue.push({time:nextTime, bar:schedBar, slot:schedSlot, tempo:tp});
     nextTime += 60 / (tp * 2);
     if(++schedSlot >= bar.slots.length){
