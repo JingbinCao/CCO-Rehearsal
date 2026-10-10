@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CCO 排练节拍器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: one working column — piece tabs, control deck, 4-bar score strip, then the meter/tempo maps as reference. */
+:root{
+  --bg:#eef0f3;
+  --panel:#ffffff;
+  --ink:#1b2130;
+  --muted:#5d6577;
+  --line:#d5d9e1;
+  --accent:#b8321f;      /* cinnabar seal red */
+  --accent-soft:#f6dcd6;
+  --weak:#8a93a6;
+  --now-bg:#fff4ef;
+  --display:"Noto Serif SC","Songti SC","STSong",serif;
+  --body:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11141b;--panel:#1a1f2a;--ink:#e6e8ee;--muted:#9aa2b3;--line:#2c3342;
+    --accent:#f07a5c;--accent-soft:#3a2220;--weak:#6f788b;--now-bg:#2a1d1b;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11141b;--panel:#1a1f2a;--ink:#e6e8ee;--muted:#9aa2b3;--line:#2c3342;
+  --accent:#f07a5c;--accent-soft:#3a2220;--weak:#6f788b;--now-bg:#2a1d1b;color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:flex;flex-direction:column;gap:18px}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:900;font-size:clamp(1.5rem,4vw,2.1rem);margin:0;letter-spacing:.02em;text-wrap:balance}
+.sub{color:var(--muted);margin:2px 0 0;font-size:.92rem}
+.lang{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--panel)}
+.lang button{border:0;background:transparent;color:var(--muted);padding:6px 14px;font:inherit;font-size:.85rem;cursor:pointer}
+.lang button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.tabs{display:flex;gap:6px;border-bottom:2px solid var(--line);flex-wrap:wrap}
+.tab{border:0;background:transparent;font:inherit;color:var(--muted);padding:10px 16px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;margin-bottom:-2px;border-bottom:3px solid transparent;text-align:left}
+.tab b{font-family:var(--display);font-size:1.25rem;color:var(--ink);font-weight:600}
+.tab small{font-size:.78rem}
+.tab[aria-selected="true"]{border-bottom-color:var(--accent)}
+.tab[aria-selected="true"] b{color:var(--accent)}
+.deck{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px 22px;align-items:start}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.label{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.stepper{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:8px;overflow:hidden;width:max-content;max-width:100%}
+.stepper button{border:0;background:var(--bg);color:var(--ink);width:40px;font-size:1.2rem;cursor:pointer}
+.stepper button:active{background:var(--accent-soft)}
+.stepper input{width:84px;border:0;border-inline:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 1.25rem var(--mono);text-align:center;padding:6px 4px;-moz-appearance:textfield}
+.stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.tempo-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.qn{font-size:1.5rem;line-height:1}
+.rec{font-size:.88rem;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.rec strong{color:var(--ink);font-family:var(--mono)}
+.pct{font-family:var(--mono);font-size:.8rem;color:var(--muted)}
+.tag{font-size:.7rem;padding:1px 6px;border-radius:4px;background:var(--accent-soft);color:var(--accent)}
+.linkbtn{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:6px;padding:3px 9px;font:inherit;font-size:.8rem;cursor:pointer}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.checks{display:flex;flex-direction:column;gap:8px;font-size:.9rem}
+.checks label{display:flex;gap:8px;align-items:flex-start;cursor:pointer}
+.checks small{display:block;color:var(--muted);font-size:.78rem}
+.ramps{grid-column:1/-1;border-top:1px solid var(--line);padding-top:12px}
+.ramp-row{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:4px 0;font-size:.92rem}
+.ramp-row label{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:12.5em}
+.ramp-row .m{font-family:var(--mono)}
+.ramp-row em{color:var(--accent)}
+.ramp-row .stepper input{width:64px;font-size:1.05rem;padding:3px 4px}
+.ramp-row .stepper button{width:32px;font-size:1rem}
+.ramp-row.off .stepper,.ramp-row.off .from{opacity:.45}
+.from{color:var(--muted)}
+.ramphint{color:var(--muted);font-size:.78rem}
+.ramping{color:var(--accent);font-style:italic}
+.play{grid-column:1/-1;display:flex;align-items:center;gap:16px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px}
+#playBtn{background:var(--accent);color:#fff;border:0;border-radius:999px;padding:12px 30px;font:700 1.05rem var(--body);cursor:pointer;min-width:132px}
+#playBtn.on{background:var(--ink);color:var(--bg)}
+.status{font-family:var(--mono);font-size:.95rem;display:flex;gap:6px 14px;flex-wrap:wrap;align-items:baseline}
+.status .big{font-size:1.6rem;font-weight:600;color:var(--accent)}
+.hint{color:var(--muted);font-size:.8rem;margin-left:auto}
+button:focus-visible,input:focus-visible,tr:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* score strip */
+.strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.barcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 10px 12px;display:flex;flex-direction:column;gap:8px;cursor:pointer;min-width:0;transition:border-color .15s,background .15s}
+.barcard.cur{border-color:var(--accent);background:var(--now-bg);box-shadow:0 0 0 1px var(--accent)}
+.barhead{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.barno{font:600 1.05rem var(--mono)}
+.sig{font-family:var(--display);font-weight:900;font-size:1.1rem;line-height:1;display:inline-flex;flex-direction:column;align-items:center}
+.sig span{display:block}
+.mark{font-size:.78rem;font-style:italic;color:var(--accent);min-height:1.2em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.groups{display:flex;flex-wrap:wrap;gap:6px 6px;align-items:flex-end}
+.grp{display:flex;flex-direction:column;align-items:stretch;gap:2px}
+.slots{display:flex;gap:1px}
+.slot{width:19px;height:36px;display:flex;align-items:flex-end;justify-content:center;border-radius:5px;color:var(--ink)}
+.slot.weak{color:var(--weak)}
+.slot svg{width:17px;height:30px;display:block}
+.slot.on{background:var(--accent);color:#fff;transform:scale(1.12)}
+.slot.weak.on{background:var(--accent-soft);color:var(--accent);transform:scale(1.06)}
+.bracket{border:1.5px solid var(--muted);border-top:0;height:6px;border-radius:0 0 3px 3px;margin-inline:3px}
+.gnum{text-align:center;font:600 .72rem var(--mono);color:var(--muted)}
+.ghost{visibility:hidden}
+@media (max-width:760px){.strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (prefers-reduced-motion:reduce){.slot.on,.slot.weak.on{transform:none}.barcard{transition:none}}
+
+.legend{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:.85rem;align-items:center}
+.legend span{display:inline-flex;gap:4px;align-items:center}
+.legend svg{width:14px;height:24px}
+
+.maps{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:18px}
+@media (max-width:760px){.maps{grid-template-columns:minmax(0,1fr)}}
+.map{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0}
+.map h2{font-family:var(--display);font-size:1.05rem;margin:0 0 8px;font-weight:600}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.88rem;font-variant-numeric:tabular-nums}
+th{text-align:left;font-weight:500;color:var(--muted);font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--line);padding:5px 8px}
+td{padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.m{font-family:var(--mono)}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--bg)}
+tbody tr.cur{background:var(--now-bg)}
+tbody tr.cur td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.note{color:var(--muted);font-size:.82rem;margin:10px 0 0;max-width:65ch}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1 data-i18n="title">排练节拍器</h1>
+      <p class="sub" data-i18n="subtitle"></p>
+    </div>
+    <div class="lang" role="group" aria-label="Language">
+      <button id="lang-zh" type="button" aria-pressed="true">中文</button>
+      <button id="lang-en" type="button" aria-pressed="false">English</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-dachao" data-piece="dachao" aria-selected="true"><b data-pname="dachao"></b><small data-pmeta="dachao"></small></button>
+    <button class="tab" role="tab" id="tab-qicai" data-piece="qicai" aria-selected="false"><b data-pname="qicai"></b><small data-pmeta="qicai"></small></button>
+  </nav>
+
+  <section class="deck" aria-label="controls">
+    <div class="field">
+      <span class="label" data-i18n="startBar"></span>
+      <div class="stepper">
+        <button type="button" id="startDec" aria-label="-1">−</button>
+        <input id="startBar" type="number" inputmode="numeric" min="1" value="1">
+        <button type="button" id="startInc" aria-label="+1">+</button>
+      </div>
+      <span class="label" data-i18n="endBar" style="margin-top:6px"></span>
+      <div class="stepper">
+        <button type="button" id="endDec" aria-label="-1">−</button>
+        <input id="endBar" type="number" inputmode="numeric" min="1" value="1">
+        <button type="button" id="endInc" aria-label="+1">+</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="label" data-i18n="tempo"></span>
+      <div class="tempo-row">
+        <span class="qn">♩=</span>
+        <div class="stepper">
+          <button type="button" id="tempoDec" aria-label="-1">−</button>
+          <input id="tempo" type="number" inputmode="numeric" min="20" max="320" value="96">
+          <button type="button" id="tempoInc" aria-label="+1">+</button>
+        </div>
+        <span class="pct" id="pct"></span>
+      </div>
+      <input id="tempoRange" type="range" min="20" max="320" value="96" aria-label="tempo">
+      <div class="rec"><span data-i18n="rec"></span> <strong id="recVal"></strong><span class="tag" id="recEst" hidden></span>
+        <button type="button" class="linkbtn" id="useRec" data-i18n="useRec"></button></div>
+    </div>
+
+    <div class="field checks">
+      <label><input type="checkbox" id="follow" checked> <span><span data-i18n="follow"></span><small data-i18n="followHint"></small></span></label>
+      <label><input type="checkbox" id="loop"> <span><span data-i18n="loop"></span><small data-i18n="loopHint"></small></span></label>
+    </div>
+
+    <div class="field ramps">
+      <span class="label" data-i18n="ramps"></span>
+      <div id="rampList"></div>
+      <small class="ramphint" data-i18n="rampHint"></small>
+    </div>
+
+    <div class="play">
+      <button type="button" id="playBtn" data-i18n="play"></button>
+      <div class="status" id="status"></div>
+      <span class="hint" data-i18n="keyHint"></span>
+    </div>
+  </section>
+
+  <section class="strip" id="strip" aria-live="off"></section>
+
+  <div class="legend">
+    <span><svg viewBox="0 0 24 40" aria-hidden="true"><use href="#ico-note"/></svg> <span data-i18n="legendAccent"></span></span>
+    <span style="color:var(--weak)"><svg viewBox="0 0 24 40" aria-hidden="true"><use href="#ico-rest"/></svg> <span data-i18n="legendWeak"></span></span>
+    <span data-i18n="legendWindow"></span>
+  </div>
+
+  <section class="maps">
+    <div class="map">
+      <h2 data-i18n="meterMap"></h2>
+      <div class="tbl"><table><thead><tr><th data-i18n="colBars"></th><th data-i18n="colMeter"></th><th data-i18n="colGroup"></th><th data-i18n="colCount"></th></tr></thead><tbody id="meterBody"></tbody></table></div>
+    </div>
+    <div class="map">
+      <h2 data-i18n="tempoMap"></h2>
+      <div class="tbl"><table><thead><tr><th data-i18n="colBar"></th><th data-i18n="colMark"></th></tr></thead><tbody id="markBody"></tbody></table></div>
+      <p class="note" id="pieceNote"></p>
+    </div>
+  </section>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="ico-note" viewBox="0 0 24 40">
+      <ellipse cx="9" cy="32" rx="6.2" ry="4.4" transform="rotate(-22 9 32)" fill="currentColor"/>
+      <rect x="13.6" y="5" width="1.8" height="27" fill="currentColor"/>
+      <path d="M15.4 5 C16 11 22.5 13 20.5 23 C20 17.5 17.5 15 15.4 14 Z" fill="currentColor"/>
+    </symbol>
+    <symbol id="ico-rest" viewBox="0 0 24 40">
+      <circle cx="9" cy="15" r="3.3" fill="currentColor"/>
+      <path d="M9.5 18 Q14 18.5 17.5 12.5 L11.5 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- score data (read from the conductor scores) ---------- */
+// meters: [firstBar, lastBar, signature, eighth-note groups]
+const PIECES = {
+  dachao: {
+    name:{zh:"大潮", en:"Da Chao"},
+    meta:{zh:"王云飞 曲 · 286 小节", en:"Wang Yunfei · 286 bars"},
+    total:286,
+    meters:[
+      [1,40,"4/4",[2,2,2,2]],[41,44,"10/8",[3,3,2,2]],[45,52,"4/4",[2,2,2,2]],[53,56,"3/4",[2,2,2]],
+      [57,64,"2/4",[2,2]],[65,72,"8/8",[2,2,2,2]],[73,76,"6/8",[3,3]],[77,88,"4/4",[2,2,2,2]],
+      [89,96,"5/8",[3,2]],[97,112,"2/4",[2,2]],[113,173,"4/4",[2,2,2,2]],[174,174,"6/4",[2,2,2,2,2,2]],
+      [175,182,"4/4",[2,2,2,2]],[183,190,"8/8",[2,2,2,2]],[191,194,"6/8",[3,3]],[195,202,"4/4",[2,2,2,2]],
+      [203,210,"5/8",[3,2]],[211,226,"2/4",[2,2]],[227,256,"4/4",[2,2,2,2]],[257,260,"3/4",[2,2,2]],
+      [261,264,"4/4",[2,2,2,2]],[265,280,"2/4",[2,2]],[281,286,"4/4",[2,2,2,2]]
+    ],
+    tempos:[{bar:1,bpm:96},{bar:33,bpm:152},{bar:123,bpm:66},{bar:175,bpm:160}],
+    marks:[[1,"♩=96"],[33,"♩=152"],[117,"rit."],[123,"♩=66 rubato"],[125,"rit."],[126,"a tempo"],[173,"rit."],[175,"♩=160"]],
+    // gradual changes: bars a..b, target tempo at the end of bar b (score gives no number; defaults are suggestions)
+    ramps:[
+      {id:"dc117", a:117, b:122, label:"rit.", target:104, unit:"q"},
+      {id:"dc125", a:125, b:125, label:"rit.", target:56,  unit:"q"},
+      {id:"dc173", a:173, b:174, label:"rit.", target:54,  unit:"q"}
+    ],
+    note:{
+      zh:"rit. 按上方“渐快 / 渐慢”设置逐渐变慢，目标速度谱上没写，默认值是建议，可以改。rubato 段仍匀速。延长记号忽略。",
+      en:"rit. follows the Accel. & rit. settings above. The score gives no target numbers, so the defaults are suggestions you can change. Rubato stays steady. Fermatas are ignored."
+    }
+  },
+  qicai: {
+    name:{zh:"七彩之和", en:"Qicai Zhi He"},
+    meta:{zh:"张朝 曲 · 第五乐章《赤·火之歌》· 1–189 小节", en:"Zhang Zhao · Mvt. V “Red · Song of Fire” · bars 1–189"},
+    total:189,
+    meters:[
+      [1,54,"4/4",[2,2,2,2]],[55,172,"7/8",[3,2,2]],[173,187,"6/8",[3,3]],[188,189,"3/4",[2,2,2]]
+    ],
+    tempos:[{bar:1,bpm:50},{bar:9,bpm:162},{bar:173,bpm:162,est:true},{bar:188,bpm:108,est:true,fromRamp:"qc173"}],
+    marks:[[1,"Adagio ♩=50"],[9,"Allegro ♩=162"],[173,"poco accel."],[188,"♩.=♩"],[189,"attacca"]],
+    ramps:[
+      {id:"qc173", a:173, b:187, label:"poco accel.", target:116, unit:"dq"}
+    ],
+    note:{
+      zh:"173 小节进 6/8 时八分音符不变（♩.=108），poco accel. 渐快到上方设定的 ♩.（默认 116，为建议值）。188 小节 ♩.=♩，所以 3/4 的 ♩ 等于渐快结束时的 ♩.；关掉渐快则为 ♩=108。",
+      en:"At bar 173 the eighth note stays constant into 6/8 (♩.=108), then poco accel. speeds up to the ♩. set above (default 116, a suggestion). Bar 188 is ♩.=♩, so the 3/4 quarter equals the ♩. reached at the end of the accel.; with the accel. off it is ♩=108."
+    }
+  }
+};
+
+const I18N = {
+  zh:{
+    title:"排练节拍器",
+    subtitle:"按每小节的拍号和分组打八分音符：组首为重音，其余为轻的分拍。",
+    startBar:"起始小节", endBar:"结束小节", tempo:"速度（四分音符）",
+    rec:"谱面速度", est:"推算", useRec:"用谱面速度",
+    follow:"跟随谱面变速", followHint:"进入新速度段时按你当前的百分比自动换算",
+    loop:"循环", loopHint:"到结束小节后回到起始小节",
+    play:"开始", stop:"停止", keyHint:"空格键：开始 / 停止",
+    bar:"小节", of:"拍",
+    legendAccent:"重音（每组第一个八分）", legendWeak:"分拍（轻）", legendWindow:"显示当前小节前后共 4 个小节，点击小节可从该处开始",
+    meterMap:"拍号表", tempoMap:"速度与记号",
+    colBars:"小节", colMeter:"拍号", colGroup:"分组", colCount:"小节数", colBar:"小节", colMark:"记号",
+    pctOf:"谱面的",
+    ramps:"渐快 / 渐慢", rampFrom:"从", rampTo:"到",
+    rampHint:"勾选后节拍器在这几个小节里逐拍均匀变速，到最后一小节末尾达到目标速度。谱上没写目标数字，默认值是建议，可以改。"
+  },
+  en:{
+    title:"Rehearsal Metronome",
+    subtitle:"Eighth-note clicks that follow each bar's meter and grouping: the first eighth of each group is accented, the rest are soft subdivisions.",
+    startBar:"Start bar", endBar:"End bar", tempo:"Tempo (quarter note)",
+    rec:"Score tempo", est:"estimated", useRec:"Use score tempo",
+    follow:"Follow score tempo changes", followHint:"Keeps your current percentage when a new tempo section starts",
+    loop:"Loop", loopHint:"Return to the start bar after the end bar",
+    play:"Start", stop:"Stop", keyHint:"Space bar: start / stop",
+    bar:"Bar", of:"beat",
+    legendAccent:"Accent (first eighth of a group)", legendWeak:"Subdivision (soft)", legendWindow:"Shows 4 bars around the current one. Click a bar to start there.",
+    meterMap:"Meter map", tempoMap:"Tempo & markings",
+    colBars:"Bars", colMeter:"Meter", colGroup:"Grouping", colCount:"Count", colBar:"Bar", colMark:"Marking",
+    pctOf:"of score",
+    ramps:"Accel. & rit.", rampFrom:"from", rampTo:"to",
+    rampHint:"When checked, the metronome changes speed evenly on every eighth across these bars and reaches the target at the end of the last bar. The score gives no target numbers, so the defaults are suggestions you can change."
+  }
+};
+
+/* ---------- derived bar table ---------- */
+function buildBars(p){
+  const bars = [];
+  for(const [a,b,sig,groups] of p.meters){
+    const slots = [];
+    groups.forEach((g,gi)=>{ for(let k=0;k<g;k++) slots.push({accent:k===0, group:gi}); });
+    for(let n=a;n<=b;n++) bars[n] = {n, sig, groups, slots};
+  }
+  return bars;
+}
+for(const k in PIECES){
+  const p = PIECES[k];
+  p.bars = buildBars(p);
+  p.pos = [0, 0];                       // pos[n] = eighths before bar n
+  for(let n=1;n<=p.total;n++) p.pos[n+1] = p.pos[n] + p.bars[n].slots.length;
+  p.ramps.forEach(r=>{ r.on = true; r.val = r.target; });
+}
+
+/* ---------- state ---------- */
+const $ = id => document.getElementById(id);
+const store = {
+  get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+};
+let lang = store.get("cco-lang") === "en" ? "en" : "zh";
+let pieceKey = store.get("cco-piece") === "qicai" ? "qicai" : "dachao";
+let P = PIECES[pieceKey];
+let startBar = 1, endBar = P.total, tempo = 96, ratio = 1;
+let follow = true, loop = false;
+
+let playing = false, ctx = null, timer = null, wakeLock = null;
+let nextTime = 0, schedBar = 1, schedSlot = 0, endTime = 0, queue = [];
+let visBar = 1, visSlot = -1, winStart = -1, rafId = 0;
+
+const clampT = t => Math.max(20, Math.min(320, Math.round(t)));
+function recFor(n){
+  let r = P.tempos[0]; for(const t of P.tempos) if(t.bar <= n) r = t;
+  if(r.fromRamp){ const rp = P.ramps.find(x=>x.id === r.fromRamp); if(rp && rp.on) return {...r, bpm: rp.val}; }
+  return r;
+}
+function rampFor(n){ return P.ramps.find(r=>r.on && n >= r.a && n <= r.b); }
+const qOf = r => r.unit === "dq" ? r.val * 1.5 : r.val;   // ramp target as a quarter-note tempo
+function rampFactor(n, s){
+  const r = rampFor(n); if(!r) return 1;
+  const p = (P.pos[n] + s - P.pos[r.a]) / (P.pos[r.b + 1] - P.pos[r.a]);
+  return 1 + (qOf(r) / recFor(r.a).bpm - 1) * p;
+}
+let liveTempo = 96;
+function markFor(n){ const m = P.marks.find(x=>x[0]===n); return m ? m[1] : ""; }
+function t(k){ return I18N[lang][k]; }
+
+/* ---------- audio ---------- */
+function click(time, accent, downbeat){
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = accent ? "triangle" : "sine";
+  // downbeat: first eighth of the bar, a fifth above the group accent
+  o.frequency.value = downbeat ? 2637 : accent ? 1760 : 1180;
+  const peak = downbeat ? 1 : accent ? 0.9 : 0.22;
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(peak, time + 0.002);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + (accent ? 0.06 : 0.035));
+  o.connect(g).connect(ctx.destination);
+  o.start(time); o.stop(time + 0.08);
+}
+function tempoForBar(n){ return follow ? clampT(recFor(n).bpm * ratio) : tempo; }
+
+function schedule(){
+  while(schedBar !== null && nextTime < ctx.currentTime + 0.12){
+    const bar = P.bars[schedBar], slot = bar.slots[schedSlot];
+    const tp = tempoForBar(schedBar);
+    const live = Math.max(20, Math.min(400, tp * rampFactor(schedBar, schedSlot)));
+    click(nextTime, slot.accent, schedSlot === 0);
+    queue.push({time:nextTime, bar:schedBar, slot:schedSlot, tempo:tp, live});
+    nextTime += 60 / (live * 2);
+    if(++schedSlot >= bar.slots.length){
+      schedSlot = 0; schedBar++;
+      if(schedBar > endBar){
+        if(loop) schedBar = startBar; else { schedBar = null; endTime = nextTime; }
+      }
+    }
+  }
+}
+function frame(){
+  if(!playing) return;
+  let changed = false;
+  while(queue.length && queue[0].time <= ctx.currentTime){
+    const e = queue.shift();
+    visBar = e.bar; visSlot = e.slot; liveTempo = e.live; changed = true;
+    if(follow && e.tempo !== tempo){ tempo = e.tempo; syncTempoUI(); }
+  }
+  if(changed) render();
+  if(schedBar === null && !queue.length && ctx.currentTime >= endTime){ stop(); return; }
+  rafId = requestAnimationFrame(frame);
+}
+async function start(){
+  if(!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if(ctx.state === "suspended") await ctx.resume();
+  ratio = tempo / recFor(startBar).bpm;
+  schedBar = startBar; schedSlot = 0; queue = [];
+  nextTime = ctx.currentTime + 0.08;
+  visBar = startBar; visSlot = -1; liveTempo = tempo;
+  playing = true;
+  timer = setInterval(schedule, 25); schedule();
+  rafId = requestAnimationFrame(frame);
+  try{ if(navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); }catch(e){ wakeLock = null; }
+  updatePlayBtn(); render();
+}
+function stop(){
+  playing = false;
+  clearInterval(timer); timer = null; cancelAnimationFrame(rafId);
+  queue = []; visSlot = -1; visBar = startBar;
+  if(wakeLock){ wakeLock.release().catch(()=>{}); wakeLock = null; }
+  if(follow) { tempo = clampT(recFor(startBar).bpm * ratio); syncTempoUI(); }
+  updatePlayBtn(); render();
+}
+function restartIfPlaying(){ if(playing){ stop(); start(); } }
+
+/* ---------- rendering ---------- */
+function sigHTML(sig){ const [a,b] = sig.split("/"); return `<span class="sig" aria-label="${sig}"><span>${a}</span><span>${b}</span></span>`; }
+function buildStrip(ws){
+  const strip = $("strip"); strip.innerHTML = "";
+  for(let i=0;i<4;i++){
+    const n = ws + i;
+    const card = document.createElement("div");
+    if(n > P.total){ card.className = "barcard ghost"; strip.appendChild(card); continue; }
+    const bar = P.bars[n];
+    card.className = "barcard"; card.dataset.bar = n; card.tabIndex = 0;
+    let html = `<div class="barhead"><span class="barno">${n}</span>${sigHTML(bar.sig)}</div><div class="mark">${markFor(n) || "&nbsp;"}</div><div class="groups">`;
+    let s = 0;
+    bar.groups.forEach(g=>{
+      html += `<div class="grp"><div class="slots">`;
+      for(let k=0;k<g;k++,s++){
+        const acc = k===0;
+        html += `<span class="slot ${acc?"acc":"weak"}" data-s="${s}"><svg viewBox="0 0 24 40" aria-hidden="true"><use href="#${acc?"ico-note":"ico-rest"}"/></svg></span>`;
+      }
+      html += `</div><div class="bracket"></div><div class="gnum">${g}</div></div>`;
+    });
+    card.innerHTML = html + "</div>";
+    strip.appendChild(card);
+  }
+}
+function render(){
+  const cur = playing ? visBar : startBar;
+  const ws = Math.max(1, Math.min(cur - 1, P.total - 3));
+  if(ws !== winStart){ winStart = ws; buildStrip(ws); }
+  document.querySelectorAll("#strip .barcard").forEach(c=>{
+    const n = +c.dataset.bar;
+    c.classList.toggle("cur", n === cur);
+    c.querySelectorAll(".slot").forEach(sl=>sl.classList.toggle("on", playing && n === cur && +sl.dataset.s === visSlot));
+  });
+  document.querySelectorAll("#meterBody tr").forEach(tr=>tr.classList.toggle("cur", cur >= +tr.dataset.a && cur <= +tr.dataset.b));
+  const bar = P.bars[cur];
+  const groupStr = bar.groups.join("+");
+  const tp = playing ? Math.round(liveTempo) : Math.round(tempo * rampFactor(cur, 0));
+  const eighth = tp * 2;
+  const extra = bar.sig.endsWith("/8") && bar.groups.every(g=>g===3) ? ` · ♩.=${Math.round(eighth/3)}` : "";
+  const r = rampFor(cur);
+  const rampStr = r ? `<span class="ramping">${r.label} → ${r.unit==="dq"?"♩.":"♩"}=${r.val}</span>` : "";
+  $("status").innerHTML = `<span>${t("bar")}</span><span class="big">${cur}</span><span>${bar.sig}</span><span>${groupStr}</span><span>♩=${tp} · ♪=${eighth}${extra}</span>${rampStr}`;
+}
+function syncTempoUI(){
+  $("tempo").value = tempo; $("tempoRange").value = tempo;
+  const cur = playing ? visBar : startBar;
+  const r = recFor(cur);
+  $("recVal").textContent = "♩=" + r.bpm;
+  $("recEst").hidden = !r.est; $("recEst").textContent = t("est");
+  const pct = Math.round(tempo / r.bpm * 100);
+  $("pct").textContent = pct === 100 ? "" : `${pct}% ${t("pctOf")}`;
+  render();
+}
+function updatePlayBtn(){ const b = $("playBtn"); b.textContent = playing ? t("stop") : t("play"); b.classList.toggle("on", playing); }
+
+function buildMaps(){
+  $("meterBody").innerHTML = P.meters.map(([a,b,sig,g])=>
+    `<tr data-a="${a}" data-b="${b}" tabindex="0"><td class="m">${a===b?a:a+"–"+b}</td><td class="m">${sig}</td><td class="m">${g.join("+")}</td><td class="m">${b-a+1}</td></tr>`).join("");
+  $("markBody").innerHTML = P.marks.map(([n,m])=>{
+    const est = P.tempos.find(x=>x.bar===n && x.est);
+    return `<tr data-a="${n}" data-b="${n}" tabindex="0"><td class="m">${n}</td><td>${m}${est?` <span class="tag">${t("est")} ♩=${est.bpm}</span>`:""}</td></tr>`;
+  }).join("");
+  $("pieceNote").textContent = P.note[lang];
+  buildRamps();
+}
+function buildRamps(){
+  $("rampList").innerHTML = P.ramps.map(r=>{
+    const u = r.unit === "dq" ? "♩." : "♩";
+    const from = r.unit === "dq" ? Math.round(recFor(r.a).bpm * 2/3) : recFor(r.a).bpm;
+    const bars = r.a === r.b ? r.a : `${r.a}–${r.b}`;
+    return `<div class="ramp-row${r.on?"":" off"}" data-id="${r.id}">
+      <label><input type="checkbox" data-act="on" ${r.on?"checked":""}> <span class="m">${bars}</span> <em>${r.label}</em></label>
+      <span class="from">${t("rampFrom")} ${u}=${from} ${t("rampTo")} ${u}=</span>
+      <div class="stepper"><button type="button" data-act="dec" aria-label="-1">−</button><input type="number" inputmode="numeric" id="ramp-${r.id}" data-act="val" min="20" max="400" value="${r.val}"><button type="button" data-act="inc" aria-label="+1">+</button></div>
+    </div>`;
+  }).join("");
+}
+function onRamp(e){
+  const row = e.target.closest(".ramp-row"); if(!row) return;
+  const r = P.ramps.find(x=>x.id === row.dataset.id);
+  const act = e.target.dataset.act;
+  if(act === "on" && e.type === "change") r.on = e.target.checked;
+  else if(act === "val" && e.type === "change") r.val = Math.max(20, Math.min(400, Math.round(+e.target.value) || r.target));
+  else if(act === "dec" && e.type === "click") r.val = Math.max(20, r.val - 1);
+  else if(act === "inc" && e.type === "click") r.val = Math.min(400, r.val + 1);
+  else return;
+  row.classList.toggle("off", !r.on);
+  row.querySelector("[data-act=val]").value = r.val;
+  syncTempoUI();
+}
+function applyLang(){
+  document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  document.title = lang === "zh" ? "CCO 排练节拍器" : "CCO Rehearsal Metronome";
+  document.querySelectorAll("[data-i18n]").forEach(el=>{ el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll("[data-pname]").forEach(el=>{ el.textContent = PIECES[el.dataset.pname].name[lang]; });
+  document.querySelectorAll("[data-pmeta]").forEach(el=>{ el.textContent = PIECES[el.dataset.pmeta].meta[lang]; });
+  $("lang-zh").setAttribute("aria-pressed", lang==="zh"); $("lang-en").setAttribute("aria-pressed", lang==="en");
+  buildMaps(); updatePlayBtn(); syncTempoUI();
+}
+
+/* ---------- actions ---------- */
+function setStart(n, keepTempo){
+  n = Math.max(1, Math.min(P.total, Math.round(n) || 1));
+  startBar = n; $("startBar").value = n;
+  if(endBar < startBar){ endBar = startBar; $("endBar").value = endBar; }
+  if(!keepTempo){ tempo = recFor(n).bpm; ratio = 1; }
+  if(playing) restartIfPlaying(); else syncTempoUI();
+}
+function setEnd(n){
+  n = Math.max(1, Math.min(P.total, Math.round(n) || P.total));
+  endBar = Math.max(n, startBar); $("endBar").value = endBar;
+}
+function setTempo(v){
+  tempo = clampT(v);
+  const cur = playing ? visBar : startBar;
+  ratio = tempo / recFor(cur).bpm;
+  syncTempoUI();
+}
+function selectPiece(key){
+  if(playing) stop();
+  pieceKey = key; P = PIECES[key]; store.set("cco-piece", key);
+  document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected", b.dataset.piece===key));
+  $("startBar").max = P.total; $("endBar").max = P.total;
+  endBar = P.total; $("endBar").value = P.total;
+  winStart = -1; buildMaps(); setStart(1);
+}
+
+$("lang-zh").onclick = ()=>{ lang="zh"; store.set("cco-lang","zh"); applyLang(); };
+$("lang-en").onclick = ()=>{ lang="en"; store.set("cco-lang","en"); applyLang(); };
+document.querySelectorAll(".tab").forEach(b=>b.onclick = ()=>selectPiece(b.dataset.piece));
+$("startBar").addEventListener("change", e=>setStart(+e.target.value));
+$("startDec").onclick = ()=>setStart(startBar-1);
+$("startInc").onclick = ()=>setStart(startBar+1);
+$("endBar").addEventListener("change", e=>setEnd(+e.target.value));
+$("endDec").onclick = ()=>setEnd(endBar-1);
+$("endInc").onclick = ()=>setEnd(endBar+1);
+$("tempo").addEventListener("change", e=>setTempo(+e.target.value));
+$("tempoRange").addEventListener("input", e=>setTempo(+e.target.value));
+$("tempoDec").onclick = ()=>setTempo(tempo-1);
+$("tempoInc").onclick = ()=>setTempo(tempo+1);
+$("useRec").onclick = ()=>setTempo(recFor(playing ? visBar : startBar).bpm);
+$("rampList").addEventListener("change", onRamp);
+$("rampList").addEventListener("click", onRamp);
+$("follow").onchange = e=>{ follow = e.target.checked; };
+$("loop").onchange = e=>{ loop = e.target.checked; };
+$("playBtn").onclick = ()=>{ playing ? stop() : start(); };
+$("strip").addEventListener("click", e=>{ const c = e.target.closest(".barcard[data-bar]"); if(c) setStart(+c.dataset.bar); });
+function rowJump(e){ const r = e.target.closest("tr[data-a]"); if(r) setStart(+r.dataset.a); }
+$("meterBody").addEventListener("click", rowJump);
+$("markBody").addEventListener("click", rowJump);
+document.addEventListener("keydown", e=>{
+  const tag = (e.target.tagName||"").toLowerCase();
+  if(e.code === "Space" && tag !== "input" && tag !== "button"){ e.preventDefault(); playing ? stop() : start(); }
+  if(e.key === "Enter" && (e.target.matches("tr[data-a]") || e.target.matches(".barcard[data-bar]"))){ setStart(+(e.target.dataset.a || e.target.dataset.bar)); }
+});
+
+/* ---------- boot ---------- */
+document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected", b.dataset.piece===pieceKey));
+$("startBar").max = P.total; $("endBar").max = P.total; $("endBar").value = P.total;
+tempo = recFor(1).bpm;
+applyLang();
+})();
+</script>
