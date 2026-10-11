@@ -29,6 +29,7 @@
 
 - **跟随谱面变速**：进入新的速度段时，按你当前设的百分比自动换算速度。
 - **渐快 / 渐慢**：rit. 和 accel. 处可以开启逐拍均匀变速，目标速度可以改。
+- **预备一小节**：勾选后，先按起始小节的拍号和速度打一小节预备拍，再正式开始。
 - **结束小节和循环**：用来反复练一段。
 - **拍号表和速度表**：点击其中任意一行，就从那里开始。
 
@@ -80,6 +81,7 @@ A rehearsal metronome for *Da Chao* (大潮) and *Qicai Zhi He* (七彩之和), 
 
 - **Follow score tempo changes**: when a new tempo section starts, the tempo is converted at your current percentage of the score tempo.
 - **Accel. & rit.**: optional even, per-eighth tempo ramps with editable targets.
+- **One-bar count-in**: when checked, plays one bar in the start bar's meter and tempo before the real start.
 - **End bar and loop**: for drilling a passage.
 - **Clickable meter and tempo maps**: click any row to start there.
 

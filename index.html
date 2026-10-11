@@ -79,6 +79,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .from{color:var(--muted)}
 .ramphint{color:var(--muted);font-size:.78rem}
 .ramping{color:var(--accent);font-style:italic}
+.barcard.cur.countin{border-style:dashed;background:var(--panel)}
 .play{grid-column:1/-1;display:flex;align-items:center;gap:16px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px}
 #playBtn{background:var(--accent);color:#fff;border:0;border-radius:999px;padding:12px 30px;font:700 1.05rem var(--body);cursor:pointer;min-width:132px}
 #playBtn.on{background:var(--ink);color:var(--bg)}
@@ -181,6 +182,7 @@ tbody tr.cur td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 
     <div class="field checks">
       <label><input type="checkbox" id="follow" checked> <span><span data-i18n="follow"></span><small data-i18n="followHint"></small></span></label>
+      <label><input type="checkbox" id="countin"> <span><span data-i18n="countIn"></span><small data-i18n="countInHint"></small></span></label>
       <label><input type="checkbox" id="loop"> <span><span data-i18n="loop"></span><small data-i18n="loopHint"></small></span></label>
     </div>
 
@@ -291,6 +293,7 @@ const I18N = {
     rec:"谱面速度", est:"推算", useRec:"用谱面速度",
     follow:"跟随谱面变速", followHint:"进入新速度段时按你当前的百分比自动换算",
     loop:"循环", loopHint:"到结束小节后回到起始小节",
+    countIn:"预备一小节", countInHint:"按起始小节的拍号和速度先打一小节，再正式开始", counting:"预备",
     play:"开始", stop:"停止", keyHint:"空格键：开始 / 停止",
     bar:"小节", of:"拍",
     legendAccent:"重音（每组第一个八分）", legendWeak:"分拍（轻）", legendWindow:"显示当前小节前后共 4 个小节，点击小节可从该处开始",
@@ -307,6 +310,7 @@ const I18N = {
     rec:"Score tempo", est:"estimated", useRec:"Use score tempo",
     follow:"Follow score tempo changes", followHint:"Keeps your current percentage when a new tempo section starts",
     loop:"Loop", loopHint:"Return to the start bar after the end bar",
+    countIn:"One-bar count-in", countInHint:"Plays one bar in the start bar's meter and tempo before the real start", counting:"Count-in",
     play:"Start", stop:"Stop", keyHint:"Space bar: start / stop",
     bar:"Bar", of:"beat",
     legendAccent:"Accent (first eighth of a group)", legendWeak:"Subdivision (soft)", legendWindow:"Shows 4 bars around the current one. Click a bar to start there.",
@@ -347,6 +351,7 @@ let pieceKey = store.get("cco-piece") === "qicai" ? "qicai" : "dachao";
 let P = PIECES[pieceKey];
 let startBar = 1, endBar = P.total, tempo = 96, ratio = 1;
 let follow = true, loop = false;
+let countIn = store.get("cco-countin") === "1", schedCount = false, visCount = false;
 
 let playing = false, ctx = null, timer = null, wakeLock = null;
 let nextTime = 0, schedBar = 1, schedSlot = 0, endTime = 0, queue = [];
@@ -388,12 +393,15 @@ function schedule(){
   while(schedBar !== null && nextTime < ctx.currentTime + 0.12){
     const bar = P.bars[schedBar], slot = bar.slots[schedSlot];
     const tp = tempoForBar(schedBar);
-    const live = Math.max(20, Math.min(400, tp * rampFactor(schedBar, schedSlot)));
+    // the count-in bar repeats the start bar's meter at the tempo the start bar begins with
+    const live = Math.max(20, Math.min(400, tp * rampFactor(schedBar, schedCount ? 0 : schedSlot)));
     click(nextTime, slot.accent, schedSlot === 0);
-    queue.push({time:nextTime, bar:schedBar, slot:schedSlot, tempo:tp, live});
+    queue.push({time:nextTime, bar:schedBar, slot:schedSlot, tempo:tp, live, count:schedCount});
     nextTime += 60 / (live * 2);
     if(++schedSlot >= bar.slots.length){
-      schedSlot = 0; schedBar++;
+      schedSlot = 0;
+      if(schedCount){ schedCount = false; continue; }
+      schedBar++;
       if(schedBar > endBar){
         if(loop) schedBar = startBar; else { schedBar = null; endTime = nextTime; }
       }
@@ -405,7 +413,7 @@ function frame(){
   let changed = false;
   while(queue.length && queue[0].time <= ctx.currentTime){
     const e = queue.shift();
-    visBar = e.bar; visSlot = e.slot; liveTempo = e.live; changed = true;
+    visBar = e.bar; visSlot = e.slot; liveTempo = e.live; visCount = e.count; changed = true;
     if(follow && e.tempo !== tempo){ tempo = e.tempo; syncTempoUI(); }
   }
   if(changed) render();
@@ -417,6 +425,7 @@ async function start(){
   if(ctx.state === "suspended") await ctx.resume();
   ratio = tempo / recFor(startBar).bpm;
   schedBar = startBar; schedSlot = 0; queue = [];
+  schedCount = countIn; visCount = countIn;
   nextTime = ctx.currentTime + 0.08;
   visBar = startBar; visSlot = -1; liveTempo = tempo;
   playing = true;
@@ -466,6 +475,7 @@ function render(){
   document.querySelectorAll("#strip .barcard").forEach(c=>{
     const n = +c.dataset.bar;
     c.classList.toggle("cur", n === cur);
+    c.classList.toggle("countin", playing && visCount && n === cur);
     c.querySelectorAll(".slot").forEach(sl=>sl.classList.toggle("on", playing && n === cur && +sl.dataset.s === visSlot));
   });
   document.querySelectorAll("#meterBody tr").forEach(tr=>tr.classList.toggle("cur", cur >= +tr.dataset.a && cur <= +tr.dataset.b));
@@ -476,7 +486,8 @@ function render(){
   const extra = bar.sig.endsWith("/8") && bar.groups.every(g=>g===3) ? ` · ♩.=${Math.round(eighth/3)}` : "";
   const r = rampFor(cur);
   const rampStr = r ? `<span class="ramping">${r.label} → ${r.unit==="dq"?"♩.":"♩"}=${r.val}</span>` : "";
-  $("status").innerHTML = `<span>${t("bar")}</span><span class="big">${cur}</span><span>${bar.sig}</span><span>${groupStr}</span><span>♩=${tp} · ♪=${eighth}${extra}</span>${rampStr}`;
+  const countStr = playing && visCount ? `<span class="tag">${t("counting")}</span>` : "";
+  $("status").innerHTML = `${countStr}<span>${t("bar")}</span><span class="big">${cur}</span><span>${bar.sig}</span><span>${groupStr}</span><span>♩=${tp} · ♪=${eighth}${extra}</span>${rampStr}`;
 }
 function syncTempoUI(){
   $("tempo").value = tempo; $("tempoRange").value = tempo;
@@ -580,6 +591,8 @@ $("rampList").addEventListener("change", onRamp);
 $("rampList").addEventListener("click", onRamp);
 $("follow").onchange = e=>{ follow = e.target.checked; };
 $("loop").onchange = e=>{ loop = e.target.checked; };
+$("countin").checked = countIn;
+$("countin").onchange = e=>{ countIn = e.target.checked; store.set("cco-countin", countIn ? "1" : "0"); };
 $("playBtn").onclick = ()=>{ playing ? stop() : start(); };
 $("strip").addEventListener("click", e=>{ const c = e.target.closest(".barcard[data-bar]"); if(c) setStart(+c.dataset.bar); });
 function rowJump(e){ const r = e.target.closest("tr[data-a]"); if(r) setStart(+r.dataset.a); }
